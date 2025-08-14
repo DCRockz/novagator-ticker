@@ -247,7 +247,6 @@ async function load(){
   }
 }
 load();
-setInterval(load, 300000); // refresh every 5 mins
 document.getElementById("toggle").addEventListener("click", ()=>{
   const hidden = ticker.classList.toggle("hidden");
   document.getElementById("toggle").textContent = hidden ? "Show ticker" : "Hide ticker";
@@ -349,8 +348,22 @@ const HISTORY_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOl5n8s2y0
   }
 
   loadHistory();
-  setInterval(loadHistory, 300000); // refresh every 5 min
-})();
+  // --- Auto-refresh every 5 minutes ---
+const REFRESH_MS = 5 * 60 * 1000;
+let isRefreshing = false;
+
+async function refreshAll(){
+  if (isRefreshing) return;
+  isRefreshing = true;
+  try {
+    await loadTicker();   // re-pulls CSV and updates headline (triggers count-up)
+    if (typeof fetchHistory === "function") { await fetchHistory(); } // chart, if present
+  } finally {
+    isRefreshing = false;
+  }
+}
+setInterval(refreshAll, REFRESH_MS);
+
 </script>
 <!-- === /NOVAGATOR SPARKLINE ADD-ON === -->
 
