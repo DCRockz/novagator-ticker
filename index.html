@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Novagator — Cockpit Ticker</title>
+<style>
+:root{
+  --bg:#0B1220;      /* cockpit background */
+  --panel:#101827;   /* card background */
+  --muted:#A1A8B3;
+  --fg:#FFFFFF;
+  --good:#00e5a8;    /* green glow */
+  --near:#6c5ce7;    /* purple glow */
+  --warn:#ff5a5f;    /* red glow */
+  --gold:#ffd54f;    /* goal */
+  --radius:14px;
+  --shadow:0 10px 28px rgba(0,0,0,.35);
+}
+html,body{margin:0;background:#000}
+*{box-sizing:border-box}
+.wrap{
+  color:var(--fg);
+  font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  padding:10px;
+  background:transparent;
+}
+/* HEADLINE PANEL */
+.header{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:var(--radius);
+  padding:12px;
+  backdrop-filter: blur(8px);
+  box-shadow:var(--shadow);
+}
+.brand{display:flex; align-items:center; gap:10px; min-width:240px}
+.dot{width:12px;height:12px;border-radius:50%;box-shadow:0 0 14px currentColor}
+.title{font-weight:800; letter-spacing:.02em; white-space:nowrap}
+.stats{display:flex; gap:12px; flex:1; min-width:260px}
+.card{
+  background:var(--panel);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px; padding:10px 12px; min-width:130px;
+  box-shadow:var(--shadow);
+}
+.label{font-size:12px; color:var(--muted); letter-spacing:.02em}
+.value{font-size:20px; font-weight:800; margin-top:2px}
+.btn{
+  margin-left:auto; appearance:none; border:none; cursor:pointer;
+  background:#E5E7EB; color:#0B1220; font-weight:800;
+  padding:10px 14px; border-radius:12px;
+}
+.btn:hover{background:#D1D5DB}
+/* TICKER */
+.ticker{
+  position:relative; width:100%; overflow:hidden; margin-top:12px;
+  border-radius:var(--radius);
+  border:1px solid rgba(255,255,255,.12);
+  background:#0B1220; /* solid for contrast */
+  box-shadow:var(--shadow);
+  padding:8px 0;
+}
+.ticker.hidden{display:none}
+.rail{ position:relative; height:48px; }
+.rail span{
+  position:absolute; top:50%; transform:translateY(-50%);
+  will-change:transform;
+  padding-left:16px; white-space:nowrap;
+  font-size:20px; font-weight:700;
+  color:#ffffff;                       /* JS will recolour by Status */
+  text-shadow:0 0 10px rgba(0,0,0,.85);/* outline for legibility */
+}
+/* Edge fade for elegance */
+.ticker::before,.ticker::after{
+  content:""; position:absolute; top:0; width:56px; height:100%; pointer-events:none;
+}
+.ticker::before{ left:0;  background:linear-gradient(90deg,var(--bg),rgba(11,18,32,0)) }
+.ticker::after { right:0; background:linear-gradient(270deg,var(--bg),rgba(11,18,32,0)) }
+/* Optional extra glows on ticker text */
+.glow-good{ text-shadow: 0 0 16px rgba(0,229,168,.9) }
+.glow-near{ text-shadow: 0 0 16px rgba(108,92,231,.9) }
+.glow-warn{ text-shadow: 0 0 16px rgba(255,90,95,.95) }
+.smallnote{color:#9ca3af; font-size:12px; margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">
+      <span class="dot" id="statusDot" style="color:#00e5a8"></span>
+      <span class="title">Novagator — Daily Snapshot</span>
+    </div>
+    <div class="stats">
+      <div class="card">
+        <div class="label">Revenue £</div>
+        <div class="value" id="revenueVal">—</div>
+      </div>
+      <div class="card">
+        <div class="label">7-Day Avg £</div>
+        <div class="value" id="avgVal">—</div>
+      </div>
+      <div class="card">
+        <div class="label">Status</div>
+        <div class="value" id="statusVal">—</div>
+      </div>
+    </div>
+    <button class="btn" id="toggle">Hide ticker</button>
+  </div>
+  <div class="ticker" id="ticker">
+    <div class="rail">
+      <span id="t1">Loading…</span>
+      <span id="t2" aria-hidden="true"></span>
+    </div>
+  </div>
+  <div class="smallnote" id="note"></div>
+</div>
+<script>
+// ===== CONFIG =====
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTpSc6IVhZlP1U_4T6QvquApQ5_qOXzNCDZxFN5JQBx16V4kZqCmbMY0RvCwGYIsaPSAQwAdqYZlfFY/pub?gid=930492670&single=true&output=csv";
+let SCROLL_SPEED = 120;   // px / sec
+let GAP = 72;             // space between repeats (px)
+// Offline fallback (used only if CSV can't be fetched)
+const FALLBACK_LINE = "Today: 14 Aug 2025  •  TikTok: 1,450  •  Instagram: 940  •  YouTube: 920  •  Total Views: 3,310  •  Revenue £: 300  •  7-Day Avg £: 280  •  Status: Green";
+
+// ===== ELEMENTS =====
+const revEl = document.getElementById("revenueVal");
+const avgEl = document.getElementById("avgVal");
+const statusEl = document.getElementById("statusVal");
+const statusDot = document.getElementById("statusDot");
+const ticker = document.getElementById("ticker");
+const toggleBtn = document.getElementById("toggle");
+const rail = document.querySelector(".rail");
+const note = document.getElementById("note");
+let t1, t2;  // ticker spans
+let controller;
+
+// ===== HELPERS =====
+function parseNum(s){ return s ? parseFloat(String(s).replace(/[^0-9.\-]+/g,"")) : NaN; }
+function extractValues(line){
+  const revMatch = line.match(/Revenue[^0-9\-]*([0-9.,]+)/i);
+  const avgMatch = line.match(/7[- ]?Day Avg[^0-9\-]*([0-9.,]+)/i);
+  const statusMatch = line.match(/Status:\s*([A-Za-z ]+)/i);
+  return {
+    revenue: revMatch ? parseNum(revMatch[1]) : NaN,
+    avg: avgMatch ? parseNum(avgMatch[1]) : NaN,
+    status: statusMatch ? statusMatch[1].trim() : "—"
+  };
+}
+function setTickerStyleByStatus(statusText){
+  const s = (statusText || "").toLowerCase();
+  let color = "#ffffff", glow = "0 0 12px rgba(255,255,255,.85)";
+  if (s.includes("green")) { color = "#00ff7f"; glow = "0 0 16px rgba(0,255,127,.95)"; }
+  else if (s.includes("amber") || s.includes("orange")) { color = "#ffbf00"; glow = "0 0 16px rgba(255,191,0,.95)"; }
+  else if (s.includes("red")) { color = "#ff4d4d"; glow = "0 0 16px rgba(255,77,77,.98)"; }
+  [t1,t2].forEach(el => { el.style.color = color; el.style.textShadow = glow; });
+}
+function setHeadline(line){
+  const { revenue, avg, status } = extractValues(line);
+  revEl.textContent = isNaN(revenue) ? "—" : Math.round(revenue).toLocaleString();
+  avgEl.textContent = isNaN(avg) ? "—" : Math.round(avg).toLocaleString();
+  statusEl.textContent = status;
+  [t1,t2].forEach(el=>el && el.classList.remove("glow-good","glow-near","glow-warn"));
+  if(!isNaN(revenue) && !isNaN(avg)){
+    if(revenue >= 1000){ statusDot.style.color = "#ffd54f"; t1?.classList.add("glow-near"); t2?.classList.add("glow-near"); }
+    else if(revenue >= 800){ statusDot.style.color = "#6c5ce7"; t1?.classList.add("glow-near"); t2?.classList.add("glow-near"); }
+    else if(revenue >= avg){ statusDot.style.color = "#00e5a8"; t1?.classList.add("glow-good"); t2?.classList.add("glow-good"); }
+    else { statusDot.style.color = "#ff5a5f"; t1?.classList.add("glow-warn"); t2?.classList.add("glow-warn"); }
+  } else {
+    statusDot.style.color = "#00e5a8";
+  }
+  setTickerStyleByStatus(status);
+}
+// ===== TICKER =====
+function initTicker(text){
+  rail.innerHTML = "";
+  t1 = document.createElement("span");
+  t2 = document.createElement("span");
+  const payload = text.endsWith(" • ") ? text : (text + "   •   ");
+  t1.textContent = payload;
+  t2.textContent = payload;
+  rail.appendChild(t1);
+  rail.appendChild(t2);
+  let x1 = 0;
+  const w1 = () => t1.getBoundingClientRect().width;
+  let x2 = w1() + 72;
+  const fpsSpeed = () => 120 / 60;
+  function animate(){
+    const step = fpsSpeed();
+    x1 -= step; x2 -= step;
+    const width = w1();
+    if (x1 < -width) x1 = x2 + width + 72;
+    if (x2 < -width) x2 = x1 + width + 72;
+    t1.style.transform = `translate(${x1}px,-50%)`;
+    t2.style.transform = `translate(${x2}px,-50%)`;
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+// ===== FETCH WITH TIMEOUT + FALLBACK =====
+async function fetchWithTimeout(url, ms=3000){
+  controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try{
+    const res = await fetch(url, { cache:"no-store", signal: controller.signal });
+    clearTimeout(id);
+    return await res.text();
+  }catch(e){
+    clearTimeout(id);
+    throw e;
+  }
+}
+async function load(){
+  note.textContent = "";
+  try{
+    let text = await fetchWithTimeout(CSV_URL, 3500);
+    let line = text.trim().split("\n")[0];
+    if(line.startsWith('"') && line.endsWith('"')) line = line.slice(1,-1);
+    initTicker(line);
+    setHeadline(line);
+  }catch(e){
+    // Offline or blocked: use fallback
+    initTicker(FALLBACK_LINE);
+    setHeadline(FALLBACK_LINE);
+    note.textContent = "Offline mode: displaying fallback demo data. When online, this will auto-pull from Google Sheets.";
+  }
+}
+load();
+setInterval(load, 300000); // refresh every 5 mins
+document.getElementById("toggle").addEventListener("click", ()=>{
+  const hidden = ticker.classList.toggle("hidden");
+  document.getElementById("toggle").textContent = hidden ? "Show ticker" : "Hide ticker";
+});
+</script>
+</body>
+</html>
