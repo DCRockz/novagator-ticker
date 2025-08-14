@@ -155,7 +155,23 @@ function setTickerStyleByStatus(statusText){
   else if (s.includes("amber") || s.includes("orange")) { color = "#ffbf00"; glow = "0 0 16px rgba(255,191,0,.95)"; }
   else if (s.includes("red")) { color = "#ff4d4d"; glow = "0 0 16px rgba(255,77,77,.98)"; }
   [t1,t2].forEach(el => { el.style.color = color; el.style.textShadow = glow; });
+}// --- Count-up helper for headline numbers ---
+function animateCount(el, toVal, opts={}) {
+  const duration = opts.duration || 800; // ms
+  const decimals = opts.decimals || 0;
+  const fromVal = parseFloat((el.dataset.value||"0")) || 0;
+  const start = performance.now();
+  function frame(t){
+    const p = Math.min(1, (t - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+    const val = fromVal + (toVal - fromVal) * eased;
+    el.textContent = Number(val.toFixed(decimals)).toLocaleString();
+    if (p < 1) requestAnimationFrame(frame);
+    else el.dataset.value = String(toVal);
+  }
+  requestAnimationFrame(frame);
 }
+
 function setHeadline(line){
   const { revenue, avg, status } = extractValues(line);
   revEl.textContent = isNaN(revenue) ? "—" : Math.round(revenue).toLocaleString();
