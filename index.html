@@ -174,8 +174,12 @@ function animateCount(el, toVal, opts={}) {
 
 function setHeadline(line){
   const { revenue, avg, status } = extractValues(line);
-  revEl.textContent = isNaN(revenue) ? "—" : Math.round(revenue).toLocaleString();
-  avgEl.textContent = isNaN(avg) ? "—" : Math.round(avg).toLocaleString();
+  if (isNaN(revenue)) { revEl.textContent = "—"; revEl.dataset.value = "0"; }
+else { animateCount(revEl, Math.round(revenue)); }
+
+if (isNaN(avg)) { avgEl.textContent = "—"; avgEl.dataset.value = "0"; }
+else { animateCount(avgEl, Math.round(avg)); }
+
   statusEl.textContent = status;
   [t1,t2].forEach(el=>el && el.classList.remove("glow-good","glow-near","glow-warn"));
   if(!isNaN(revenue) && !isNaN(avg)){
