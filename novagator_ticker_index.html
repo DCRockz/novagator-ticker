@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novagator Ticker</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+  }
+  .headline-panel {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1rem;
+    background: #000;
+    color: white;
+  }
+  .card {
+    background: #111a2b;
+    padding: 1rem 2rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    text-align: center;
+    min-width: 120px;
+  }
+  .card-title {
+    font-size: 0.8rem;
+    color: #bbb;
+    margin-bottom: 0.3rem;
+  }
+  .card-value {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: white;
+  }
+  .ticker-container {
+    background-color: #0a0020;
+    color: #aef5df;
+    padding: 0.5rem;
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+    font-size: 1.2rem;
+    box-shadow: inset 0 0 10px rgba(255,255,255,0.2);
+  }
+  .ticker-text {
+    display: inline-block;
+    padding-left: 100%;
+    animation: ticker 20s linear infinite;
+  }
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
+</style>
+</head>
+<body>
+
+<div class="headline-panel">
+  <div class="card">
+    <div class="card-title">Revenue £</div>
+    <div class="card-value" id="revenue">--</div>
+  </div>
+  <div class="card">
+    <div class="card-title">7-Day Avg £</div>
+    <div class="card-value" id="avg7">--</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Status</div>
+    <div class="card-value" id="status">--</div>
+  </div>
+</div>
+
+<div class="ticker-container">
+  <div class="ticker-text" id="ticker">Loading...</div>
+</div>
+
+<script>
+const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTpSc6IVhZlP1U_4T6QvquApQ5_qOXzNCDZxFN5JQBx16V4kZqCmbMY0RvCwGYIsaPSAQwAdqYZlfFY/pub?gid=930492670&single=true&output=csv";
+
+fetch(csvUrl)
+  .then(response => response.text())
+  .then(data => {
+    const line = data.trim();
+    document.getElementById('ticker').textContent = line;
+
+    // Extract values
+    const revMatch = line.match(/Revenue.*?£:?\s*([\d,]+)/i);
+    const avgMatch = line.match(/7-Day Avg.*?£:?\s*([\d,]+)/i);
+    const statusMatch = line.match(/Status:?\s*(\w+)/i);
+
+    if (revMatch) document.getElementById('revenue').textContent = revMatch[1];
+    if (avgMatch) document.getElementById('avg7').textContent = avgMatch[1];
+    if (statusMatch) {
+      const status = statusMatch[1];
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = status;
+      if (status.toLowerCase() === 'green') {
+        statusEl.style.color = 'lime';
+      } else if (status.toLowerCase() === 'red') {
+        statusEl.style.color = 'red';
+      } else {
+        statusEl.style.color = 'orange';
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
