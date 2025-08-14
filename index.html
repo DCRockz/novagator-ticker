@@ -366,6 +366,83 @@ setInterval(refreshAll, REFRESH_MS);
 
 </script>
 <!-- === /NOVAGATOR SPARKLINE ADD-ON === -->
+<!-- === NOVAGATOR HISTORY PATCH (safe + verbose) === -->
+<style>
+  .nv-analytics-card{background:#0b1220;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-top:10px;color:#fff}
+  .nv-analytics-title{font:12px system-ui;color:#A1A8B3;margin-bottom:6px}
+  .nv-analytics-note{font:12px system-ui;color:#9ca3af;margin-top:6px}
+</style>
+
+<div id="nv-analytics" class="nv-analytics-card">
+  <div class="nv-analytics-title">7-Day Performance (Revenue)</div>
+  <canvas id="nvChart" width="900" height="140"></canvas>
+  <div id="nvNote" class="nv-analytics-note"></div>
+</div>
+
+<script>
+const HISTORY_CSV = "PASTE_YOUR_CSV_LINK_HERE"; // must end with output=csv
+
+function nvDraw(values, colour="rgba(108,92,231,0.95)") {
+  const c = document.getElementById("nvChart");
+  const n = document.getElementById("nvNote");
+  if(!c){ if(n) n.textContent="Chart canvas missing."; return; }
+  const ctx = c.getContext("2d"), W=c.width, H=c.height, pad=8;
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.globalAlpha=0.08; ctx.fillStyle="#fff";
+  for(let x=0;x<=W;x+=90) ctx.fillRect(x,0,1,H);
+  for(let y=0;y<=H;y+=28) ctx.fillRect(0,y,W,1);
+  ctx.globalAlpha=1;
+
+  if(!values?.length){ return; }
+  const min=Math.min(...values), max=Math.max(...values);
+  const norm=v=>H-pad-((v-min)/(max-min||1))*(H-2*pad);
+  ctx.strokeStyle=colour; ctx.lineWidth=2; ctx.beginPath();
+  values.forEach((v,i)=>{
+    const x=pad+i*((W-2*pad)/Math.max(1,values.length-1)), y=norm(v);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+}
+
+async function fetchHistory(){
+  const note=document.getElementById("nvNote");
+  try{
+    if(!HISTORY_CSV){ note.textContent="No HISTORY_CSV set."; nvDraw([120,160,180,210,190,260,300]); return; }
+    const r=await fetch(HISTORY_CSV,{cache:"no-store"});
+    if(!r.ok){ note.textContent=`History fetch failed: ${r.status} ${r.statusText}`; nvDraw([120,160,180,210,190,260,300]); return; }
+    const raw=(await r.text()).trim();
+    if(!raw){ note.textContent="History CSV is empty."; nvDraw([120,160,180,210,190,260,300]); return; }
+
+    // Robust parse: tolerate commas/semicolons, headers, £ in headers (not in values)
+    const lines=raw.split(/\r?\n/).filter(Boolean);
+    const dataLines=lines.filter(l=>/^\s*[\d/"'-]/.test(l)); // looks like a date/number start
+    const last7=dataLines.slice(-7);
+    const values=last7.map(l=>{
+      const parts=l.split(/[;,]/).map(s=>s.trim());
+      for(let i=parts.length-1;i>=0;i--){
+        const m=parts[i].match(/-?\d+[.,]?\d*/);
+        if(m){ const n=parseFloat(m[0].replace(',','.')); if(!isNaN(n)) return n; }
+      }
+      return NaN;
+    }).filter(v=>!isNaN(v));
+
+    if(!values.length){ note.textContent="Parsed 0 numbers. Ensure column B cells are numbers only (no £ inside the cell)."; nvDraw([120,160,180,210,190,260,300]); return; }
+
+    note.textContent=""; nvDraw(values);
+  }catch(e){
+    const msg=(e&&e.message)||String(e); 
+    const note=document.getElementById("nvNote");
+    if(note) note.textContent=`History error: ${msg}`;
+    nvDraw([120,160,180,210,190,260,300]);
+  }
+}
+
+// initial + periodic refresh
+fetchHistory();
+setInterval(fetchHistory, 5*60*1000);
+</script>
+<!-- === /NOVAGATOR HISTORY PATCH === -->
 
 </body>
 </html>
